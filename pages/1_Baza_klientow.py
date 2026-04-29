@@ -150,7 +150,6 @@ with tab_import:
             )
 
             if st.button("Importuj", type="primary"):
-                # walidacja mapowania
                 missing_required = [
                     label for key, label, req in CORE_FIELDS
                     if req and mapping.get(key) == "— pomiń —"
@@ -162,7 +161,6 @@ with tab_import:
                     )
                     st.stop()
 
-                # budowa rekordów
                 records: list[dict] = []
                 row_errors: list[str] = []
                 seen_nips: set[str] = set()
@@ -235,7 +233,6 @@ with tab_import:
                 added = updated = errors = 0
                 error_messages: list[str] = []
 
-                # sprawdzenie istniejących NIP-ów
                 try:
                     existing_resp = (
                         client.table("clients")
@@ -252,10 +249,9 @@ with tab_import:
                 total = len(records)
 
                 if mode.startswith("Dodaj nowe / Nadpisz"):
-                    # upsert paczkami
                     BATCH = 100
                     for i in range(0, total, BATCH):
-                        batch = records[i : i + BATCH]
+                        batch = records[i: i + BATCH]
                         try:
                             client.table("clients").upsert(
                                 batch, on_conflict="nip"
@@ -270,11 +266,10 @@ with tab_import:
                             error_messages.append(str(exc))
                         progress.progress(min((i + BATCH) / total, 1.0))
                 else:
-                    # tylko dodaj nowe
                     new_records = [r for r in records if r["nip"] not in existing_nips]
                     BATCH = 100
                     for i in range(0, len(new_records), BATCH):
-                        batch = new_records[i : i + BATCH]
+                        batch = new_records[i: i + BATCH]
                         try:
                             client.table("clients").insert(batch).execute()
                             added += len(batch)
@@ -348,14 +343,8 @@ with tab_list:
             filtered = filtered[filtered["aktywny"] == False]  # noqa: E712
 
     display_cols = [
-        "nazwa_firmy",
-        "nip",
-        "email",
-        "rodzaj_ksiegowosci",
-        "platnik_vat",
-        "ma_pracownikow",
-        "rodzaj_umowy",
-        "aktywny",
+        "nazwa_firmy", "nip", "email", "rodzaj_ksiegowosci",
+        "platnik_vat", "ma_pracownikow", "rodzaj_umowy", "aktywny",
     ]
     visible_cols = [c for c in display_cols if c in filtered.columns]
     st.dataframe(
@@ -415,12 +404,8 @@ with tab_list:
                     umowa_opts,
                     index=umowa_opts.index(client_row.get("rodzaj_umowy") or ""),
                 )
-                e_vat = st.checkbox(
-                    "Płatnik VAT", value=bool(client_row.get("platnik_vat"))
-                )
-                e_prac = st.checkbox(
-                    "Ma pracowników", value=bool(client_row.get("ma_pracownikow"))
-                )
+                e_vat = st.checkbox("Płatnik VAT", value=bool(client_row.get("platnik_vat")))
+                e_prac = st.checkbox("Ma pracowników", value=bool(client_row.get("ma_pracownikow")))
                 e_aktywny = st.checkbox("Aktywny", value=bool(client_row.get("aktywny")))
 
             sb1, sb2 = st.columns(2)
@@ -530,17 +515,4 @@ with tab_extra:
                 show_supabase_error("Błąd dodawania pola", exc)
 
 
-logout_button()
-import streamlit as st
-
-from auth import ABACUS_NAVY, check_password, logout_button
-
-st.set_page_config(page_title="Baza klientów | Abacus", layout="wide")
-check_password()
-
-st.markdown(
-    f"<h1 style='color:{ABACUS_NAVY};font-weight:700'>Baza klientów</h1>",
-    unsafe_allow_html=True,
-)
-st.info("Moduł w budowie")
 logout_button()
