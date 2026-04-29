@@ -76,6 +76,6 @@ def check_password() -> None:
 
 
 def logout_button() -> None:
-    if st.sidebar.button("Wyloguj"):
+    if st.sidebar.button("Wyloguj", key="logout_btn_unique"):
         st.session_state["authenticated"] = False
         st.rerun()
