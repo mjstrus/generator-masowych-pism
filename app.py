@@ -79,5 +79,3 @@ for col, (title, desc) in zip(cols, tiles):
 
 st.markdown("")
 st.caption("Wybierz moduł z menu po lewej, aby rozpocząć pracę.")
-
-logout_button()
