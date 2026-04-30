@@ -19,23 +19,41 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# (klucz_db, etykieta, wymagane)
 CORE_FIELDS: list[tuple[str, str, bool]] = [
-    ("nazwa_firmy", "Nazwa firmy", True),
-    ("nip", "NIP", True),
-    ("adres", "Adres", False),
-    ("email", "E-mail", False),
-    ("telefon", "Telefon", False),
-    ("rodzaj_ksiegowosci", "Rodzaj księgowości (KH/KPiR/Ryczalt)", False),
-    ("platnik_vat", "Płatnik VAT", False),
-    ("ma_pracownikow", "Ma pracowników", False),
-    ("rodzaj_umowy", "Rodzaj umowy (UoP/UZ/UoD)", False),
+    ("nazwa_firmy",          "Nazwa firmy",               True),
+    ("nip",                  "NIP",                       True),
+    ("osoba_reprezentujaca", "Osoba reprezentująca",      False),
+    ("nr_klienta",           "Nr klienta",                False),
+    ("ksiegowy",             "Księgowy / Księgowa",       False),
+    ("regon",                "REGON",                     False),
+    ("krs",                  "KRS",                       False),
+    ("pesel",                "PESEL",                     False),
+    ("ulica",                "Ulica",                     False),
+    ("kod_pocztowy",         "Kod pocztowy",              False),
+    ("miasto",               "Miasto",                    False),
+    ("email",                "Mail",                      False),
+    ("telefon",              "Telefon",                   False),
+    ("forma_dzialalnosci",   "Forma działalności",        False),
+    ("data_zawarcia_umowy",  "Data zawarcia umowy",       False),
+    ("platnik_vat",          "Płatnik VAT",               False),
+    ("ma_pracownikow",       "Zatrudnia pracowników",     False),
+    ("rodzaj_ksiegowosci",   "Rodzaj księgowości",        False),
+    ("rodzaj_umowy",         "Rodzaj umowy",              False),
 ]
+
+BOOL_FIELDS = {"platnik_vat", "ma_pracownikow"}
 KSIEGOWOSC_VALUES = {"KH", "KPiR", "Ryczalt"}
 UMOWA_VALUES = {"UoP", "UZ", "UoD"}
-BOOL_FIELDS = {"platnik_vat", "ma_pracownikow"}
 
-TRUE_TOKENS = {"true", "tak", "t", "1", "yes", "y", "prawda"}
+TRUE_TOKENS  = {"true", "tak", "t", "1", "yes", "y", "prawda"}
 FALSE_TOKENS = {"false", "nie", "n", "0", "no", "f", "falsz", "fałsz"}
+
+DISPLAY_COLS = [
+    "nr_klienta", "nazwa_firmy", "nip", "email", "telefon",
+    "forma_dzialalnosci", "rodzaj_ksiegowosci", "platnik_vat",
+    "ma_pracownikow", "ksiegowy", "aktywny",
+]
 
 
 def to_bool(value: Any) -> bool | None:
@@ -131,7 +149,7 @@ with tab_import:
                 target = cols_a if idx % 2 == 0 else cols_b
                 default_idx = 0
                 for i, col in enumerate(file_columns):
-                    if col.lower().replace(" ", "_") == key:
+                    if col.strip().lower().replace(" ", "_") == key:
                         default_idx = i
                         break
                 with target:
@@ -155,10 +173,7 @@ with tab_import:
                     if req and mapping.get(key) == "— pomiń —"
                 ]
                 if missing_required:
-                    st.error(
-                        "Brakuje wymaganych mapowań kolumn: "
-                        + ", ".join(missing_required)
-                    )
+                    st.error("Brakuje wymaganych mapowań: " + ", ".join(missing_required))
                     st.stop()
 
                 records: list[dict] = []
@@ -217,9 +232,7 @@ with tab_import:
                     records.append(record)
 
                 if duplicate_nips:
-                    st.warning(
-                        f"Pominięto duplikaty NIP w pliku: {', '.join(sorted(duplicate_nips))}"
-                    )
+                    st.warning(f"Pominięto duplikaty NIP w pliku: {', '.join(sorted(duplicate_nips))}")
 
                 if not records:
                     st.error("Brak prawidłowych rekordów do importu.")
@@ -253,9 +266,7 @@ with tab_import:
                     for i in range(0, total, BATCH):
                         batch = records[i: i + BATCH]
                         try:
-                            client.table("clients").upsert(
-                                batch, on_conflict="nip"
-                            ).execute()
+                            client.table("clients").upsert(batch, on_conflict="nip").execute()
                             for r in batch:
                                 if r["nip"] in existing_nips:
                                     updated += 1
@@ -280,10 +291,7 @@ with tab_import:
                     progress.progress(1.0)
 
                 progress.empty()
-
-                st.success(
-                    f"Import zakończony. Dodano: {added}, zaktualizowano: {updated}, błędy: {errors + len(row_errors)}."
-                )
+                st.success(f"Import zakończony. Dodano: {added}, zaktualizowano: {updated}, błędy: {errors + len(row_errors)}.")
                 if row_errors:
                     with st.expander(f"Błędy walidacji wierszy ({len(row_errors)})"):
                         for e in row_errors:
@@ -292,7 +300,6 @@ with tab_import:
                     with st.expander(f"Błędy zapisu ({len(error_messages)})"):
                         for e in error_messages:
                             st.write("• " + e)
-
                 refresh_caches()
 
 
@@ -320,9 +327,7 @@ with tab_list:
     with f3:
         f_vat = st.selectbox("Płatnik VAT", ["Wszyscy", "Tak", "Nie"], key="filter_vat")
     with f4:
-        f_aktywny = st.selectbox(
-            "Status", ["Aktywni", "Wszyscy", "Nieaktywni"], key="filter_aktywny"
-        )
+        f_aktywny = st.selectbox("Status", ["Aktywni", "Wszyscy", "Nieaktywni"], key="filter_aktywny")
 
     filtered = df.copy()
     if not filtered.empty:
@@ -338,15 +343,11 @@ with tab_list:
         if f_vat != "Wszyscy":
             filtered = filtered[filtered["platnik_vat"] == (f_vat == "Tak")]
         if f_aktywny == "Aktywni":
-            filtered = filtered[filtered["aktywny"] == True]  # noqa: E712
+            filtered = filtered[filtered["aktywny"] == True]   # noqa: E712
         elif f_aktywny == "Nieaktywni":
             filtered = filtered[filtered["aktywny"] == False]  # noqa: E712
 
-    display_cols = [
-        "nazwa_firmy", "nip", "email", "rodzaj_ksiegowosci",
-        "platnik_vat", "ma_pracownikow", "rodzaj_umowy", "aktywny",
-    ]
-    visible_cols = [c for c in display_cols if c in filtered.columns]
+    visible_cols = [c for c in DISPLAY_COLS if c in filtered.columns]
     st.dataframe(
         filtered[visible_cols] if visible_cols else filtered,
         use_container_width=True,
@@ -386,27 +387,37 @@ with tab_list:
         with st.form("edit_client_form"):
             c1, c2 = st.columns(2)
             with c1:
-                e_nazwa = st.text_input("Nazwa firmy *", value=client_row.get("nazwa_firmy") or "")
-                e_nip = st.text_input("NIP *", value=client_row.get("nip") or "")
-                e_adres = st.text_area("Adres", value=client_row.get("adres") or "")
-                e_email = st.text_input("E-mail", value=client_row.get("email") or "")
-                e_telefon = st.text_input("Telefon", value=client_row.get("telefon") or "")
+                e_nazwa  = st.text_input("Nazwa firmy *",        value=client_row.get("nazwa_firmy") or "")
+                e_nip    = st.text_input("NIP *",                value=client_row.get("nip") or "")
+                e_osoba  = st.text_input("Osoba reprezentująca", value=client_row.get("osoba_reprezentujaca") or "")
+                e_nr     = st.text_input("Nr klienta",           value=client_row.get("nr_klienta") or "")
+                e_ks     = st.text_input("Księgowy / Księgowa",  value=client_row.get("ksiegowy") or "")
+                e_regon  = st.text_input("REGON",                value=client_row.get("regon") or "")
+                e_krs    = st.text_input("KRS",                  value=client_row.get("krs") or "")
+                e_pesel  = st.text_input("PESEL",                value=client_row.get("pesel") or "")
+                e_ulica  = st.text_input("Ulica",                value=client_row.get("ulica") or "")
+                e_kod    = st.text_input("Kod pocztowy",         value=client_row.get("kod_pocztowy") or "")
+                e_miasto = st.text_input("Miasto",               value=client_row.get("miasto") or "")
             with c2:
+                e_email   = st.text_input("Mail",                value=client_row.get("email") or "")
+                e_telefon = st.text_input("Telefon",             value=client_row.get("telefon") or "")
+                e_forma   = st.text_input("Forma działalności",  value=client_row.get("forma_dzialalnosci") or "")
+                e_data    = st.text_input("Data zawarcia umowy", value=str(client_row.get("data_zawarcia_umowy") or ""))
                 ksieg_opts = ["", "KH", "KPiR", "Ryczalt"]
-                e_ksieg = st.selectbox(
+                e_rk = st.selectbox(
                     "Rodzaj księgowości",
                     ksieg_opts,
                     index=ksieg_opts.index(client_row.get("rodzaj_ksiegowosci") or ""),
                 )
                 umowa_opts = ["", "UoP", "UZ", "UoD"]
-                e_umowa = st.selectbox(
+                e_ru = st.selectbox(
                     "Rodzaj umowy",
                     umowa_opts,
                     index=umowa_opts.index(client_row.get("rodzaj_umowy") or ""),
                 )
-                e_vat = st.checkbox("Płatnik VAT", value=bool(client_row.get("platnik_vat")))
-                e_prac = st.checkbox("Ma pracowników", value=bool(client_row.get("ma_pracownikow")))
-                e_aktywny = st.checkbox("Aktywny", value=bool(client_row.get("aktywny")))
+                e_vat     = st.checkbox("Płatnik VAT",           value=bool(client_row.get("platnik_vat")))
+                e_prac    = st.checkbox("Zatrudnia pracowników", value=bool(client_row.get("ma_pracownikow")))
+                e_aktywny = st.checkbox("Aktywny",               value=bool(client_row.get("aktywny")))
 
             sb1, sb2 = st.columns(2)
             with sb1:
@@ -419,21 +430,29 @@ with tab_list:
                 st.error("Nazwa firmy i NIP są wymagane.")
             else:
                 update = {
-                    "nazwa_firmy": e_nazwa.strip(),
-                    "nip": normalize_nip(e_nip),
-                    "adres": e_adres.strip() or None,
-                    "email": e_email.strip() or None,
-                    "telefon": e_telefon.strip() or None,
-                    "rodzaj_ksiegowosci": e_ksieg or None,
-                    "rodzaj_umowy": e_umowa or None,
-                    "platnik_vat": e_vat,
-                    "ma_pracownikow": e_prac,
-                    "aktywny": e_aktywny,
+                    "nazwa_firmy":          e_nazwa.strip(),
+                    "nip":                  normalize_nip(e_nip),
+                    "osoba_reprezentujaca": e_osoba.strip() or None,
+                    "nr_klienta":           e_nr.strip() or None,
+                    "ksiegowy":             e_ks.strip() or None,
+                    "regon":                e_regon.strip() or None,
+                    "krs":                  e_krs.strip() or None,
+                    "pesel":                e_pesel.strip() or None,
+                    "ulica":                e_ulica.strip() or None,
+                    "kod_pocztowy":         e_kod.strip() or None,
+                    "miasto":               e_miasto.strip() or None,
+                    "email":                e_email.strip() or None,
+                    "telefon":              e_telefon.strip() or None,
+                    "forma_dzialalnosci":   e_forma.strip() or None,
+                    "data_zawarcia_umowy":  e_data.strip() or None,
+                    "rodzaj_ksiegowosci":   e_rk or None,
+                    "rodzaj_umowy":         e_ru or None,
+                    "platnik_vat":          e_vat,
+                    "ma_pracownikow":       e_prac,
+                    "aktywny":              e_aktywny,
                 }
                 try:
-                    get_client().table("clients").update(update).eq(
-                        "id", int(selected_id)
-                    ).execute()
+                    get_client().table("clients").update(update).eq("id", int(selected_id)).execute()
                     st.success("Zapisano zmiany.")
                     refresh_caches()
                     st.rerun()
@@ -442,9 +461,7 @@ with tab_list:
 
         if deactivate:
             try:
-                get_client().table("clients").update({"aktywny": False}).eq(
-                    "id", int(selected_id)
-                ).execute()
+                get_client().table("clients").update({"aktywny": False}).eq("id", int(selected_id)).execute()
                 st.success("Klient dezaktywowany.")
                 refresh_caches()
                 st.rerun()
@@ -474,9 +491,7 @@ with tab_extra:
             c3.write(row["field_type"])
             if c4.button("Usuń", key=f"del_{row['field_key']}"):
                 try:
-                    get_client().table("extra_fields").delete().eq(
-                        "field_key", row["field_key"]
-                    ).execute()
+                    get_client().table("extra_fields").delete().eq("field_key", row["field_key"]).execute()
                     st.success(f"Usunięto pole: {row['field_key']}")
                     refresh_caches()
                     st.rerun()
