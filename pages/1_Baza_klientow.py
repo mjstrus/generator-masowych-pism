@@ -87,6 +87,26 @@ def normalize_nip(value: Any) -> str | None:
     return re.sub(r"[\s\-]", "", text)
 
 
+def normalize_date(value: Any) -> str | None:
+    """Normalizuje datę do YYYY-MM-DD. Obsługuje: 26.07.2023, 26.07.2023 r., 2023-07-26."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d")
+    text = re.sub(r"\s*r\.?\s*$", "", str(value).strip()).strip()
+    if not text:
+        return None
+    m = re.match(r"^(\d{1,2})\.(\d{1,2})\.(\d{4})$", text)
+    if m:
+        return f"{m.group(3)}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)}"
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", text):
+        return text
+    try:
+        return pd.to_datetime(text, dayfirst=True).strftime("%Y-%m-%d")
+    except Exception:
+        return None
+
+
 def show_supabase_error(prefix: str, exc: Exception) -> None:
     st.error(f"{prefix}: {exc}")
 
@@ -190,6 +210,10 @@ with tab_import:
                         raw = row.get(src_col)
                         if key == "nip":
                             record[key] = normalize_nip(raw)
+                        elif key == "data_zawarcia_umowy":
+                            v = normalize_date(raw)
+                            if v is not None:
+                                record[key] = v
                         elif key in BOOL_FIELDS:
                             b = to_bool(raw)
                             if b is not None:
